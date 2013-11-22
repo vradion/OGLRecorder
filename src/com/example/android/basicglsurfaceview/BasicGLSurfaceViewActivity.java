@@ -17,7 +17,7 @@
 package com.example.android.basicglsurfaceview;
 
 import static com.googlecode.javacv.cpp.opencv_core.IPL_DEPTH_8U;
-import static com.googlecode.javacv.cpp.opencv_highgui.cvSaveImage;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Date;
@@ -129,9 +129,9 @@ public class BasicGLSurfaceViewActivity extends Activity {
 		}
 
 		recorder = new FFmpegFrameRecorder(fName, imageWidth, imageHeight, 1);
-		recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
-		//recorder.setVideoCodec(avcodec.AV_CODEC_ID_MPEG4);
-		recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
+		//recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
+		recorder.setVideoCodec(avcodec.AV_CODEC_ID_MPEG4);
+		//recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
 		recorder.setFrameRate(frameRate);
 		recorder.setFormat("mp4");
 		//recorder.setSampleRate(sampleAudioRateInHz);
@@ -169,7 +169,7 @@ public class BasicGLSurfaceViewActivity extends Activity {
 		public void run() {
 			Log.d(TAG, "Start recording 00000000000000000000000000000");
 			do {
-				videoData = (VideoData) mView.getCurrentVideoData();
+				videoData = mView.getCurrentVideoData();
 				if(videoData != null) {
 					try {
 						int h = imageHeight;
@@ -190,7 +190,7 @@ public class BasicGLSurfaceViewActivity extends Activity {
 						long ts = (System.currentTimeMillis() - startTime);
 						recorder.setTimestamp(1000L*ts);
 						recorder.record(yuvIplimage);
-						Log.d(TAG, "record: 1111111111111111" + ts);
+						Log.d(TAG, "record: 1111111111111111: " + ts);
 					} catch (FFmpegFrameRecorder.Exception e) {
 						Log.v(TAG,e.getMessage());
 						e.printStackTrace();

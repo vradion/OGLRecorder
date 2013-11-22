@@ -16,24 +16,15 @@
 
 package com.example.android.basicglsurfaceview;
 
-import static com.googlecode.javacv.cpp.opencv_core.IPL_DEPTH_8U;
-
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.nio.ShortBuffer;
-import java.util.Date;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
-
-import com.googlecode.javacv.FFmpegFrameRecorder;
-import com.googlecode.javacv.cpp.avcodec;
-import com.googlecode.javacv.cpp.opencv_core.IplImage;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -42,9 +33,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
-import android.os.Environment;
 import android.os.SystemClock;
-import android.text.format.DateFormat;
 import android.util.Log;
 
 class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
@@ -94,6 +83,7 @@ class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
         checkGlError("glDrawArrays");
         
         ByteBuffer pixel = ByteBuffer.allocateDirect(4*width*height);
+        
         pixel.order(ByteOrder.nativeOrder());
         GLES20.glReadPixels(0, 0, width, height, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixel);
         
@@ -101,12 +91,32 @@ class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
 //        	Log.v(TAG,""+(int)(pixel.get() & 0xFF));
 //        }
         
-        currentData.setData(pixel.array(), System.currentTimeMillis());      
+        final int[] pixelsRGBA_8888 = new int[width * height];
+        final IntBuffer pixelsRGBA_8888_Buffer = IntBuffer.wrap(pixelsRGBA_8888);
+
+        // TODO Check availability of OpenGL and GLES20.GL_RGBA combinations that require less conversion operations.
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelsRGBA_8888_Buffer);
+
+        /* Convert from RGBA_8888 (Which is actually ABGR as the whole buffer seems to be inverted) --> ARGB_8888. */
+        final int[] pixelsARGB_8888 = GLHelper.convertRGBA_8888toARGB_8888(pixelsRGBA_8888);
+
+        final int[] pixels = new int[width * height];
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                pixels[x + ((height - y - 1) * width)] = pixelsARGB_8888[x + ((0 + y) * width)];
+            }
+        }
+        
+        currentData.setData(pixel.array(), System.currentTimeMillis());
+        
     }
         
     public VideoData getCurrentData() {
     	return currentData;
     }
+    
+     
     
     public void onSurfaceChanged(GL10 glUnused, int width, int height) {
         // Ignore the passed-in GL10 interface, and use the GLES20
@@ -116,6 +126,7 @@ class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
         Matrix.frustumM(mProjMatrix, 0, -ratio, ratio, -1, 1, 3, 7);
         this.width = width;
         this.height = height;
+        
         Log.d(TAG, "onSurfaceChanged");
     }
 

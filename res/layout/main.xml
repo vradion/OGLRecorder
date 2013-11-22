@@ -6,9 +6,9 @@
 
     <com.example.android.basicglsurfaceview.BasicGLSurfaceView
         android:id="@+id/glSurfaceView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_weight="0.91" />
+        android:layout_width="100dip"
+        android:layout_height="100dip"
+         />
 
     <Button
         android:id="@+id/btnStart"
