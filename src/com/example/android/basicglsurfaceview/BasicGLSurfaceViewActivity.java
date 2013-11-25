@@ -106,7 +106,7 @@ public class BasicGLSurfaceViewActivity extends Activity {
 		Log.d(TAG, "image width, image heigh:" + imageWidth +":" + imageHeight);
 
 		if (yuvIplimage == null) {
-			yuvIplimage = IplImage.create(imageWidth, imageHeight, IPL_DEPTH_8U, 3);
+			yuvIplimage = IplImage.create(imageWidth, imageHeight, IPL_DEPTH_8U, 4);
 			Log.i(TAG, "create yuvIplimage");
 		}
 
@@ -174,19 +174,21 @@ public class BasicGLSurfaceViewActivity extends Activity {
 					try {
 						int h = imageHeight;
 						int w = imageWidth;
-						for(int i=0; i < h; ++i)  
-						{  
-							for(int j=0; j < w; ++j)  
-							{  
-								int ch1 = i*yuvIplimage.widthStep() + j*3 + 0;
-								int ch2 = i*yuvIplimage.widthStep() + j*3 + 1;
-								int ch3 = i*yuvIplimage.widthStep() + j*3 + 2;
-								yuvIplimage.getByteBuffer().put(ch1, videoData.data[(h-i-1)*3*w + j*3+0]);
-								yuvIplimage.getByteBuffer().put(ch2, videoData.data[(h-i-1)*3*w + j*3+1]);
-								yuvIplimage.getByteBuffer().put(ch3, videoData.data[(h-i-1)*3*w + j*3+2]);
-
-							}  
-						}  
+//						for(int i=0; i < h; ++i)  
+//						{  
+//							for(int j=0; j < w; ++j)  
+//							{  
+//								int ch1 = i*yuvIplimage.widthStep() + j*3 + 0;
+//								int ch2 = i*yuvIplimage.widthStep() + j*3 + 1;
+//								int ch3 = i*yuvIplimage.widthStep() + j*3 + 2;
+//								yuvIplimage.getByteBuffer().put(ch1, videoData.data[(h-i-1)*3*w + j*3+0]);
+//								yuvIplimage.getByteBuffer().put(ch2, videoData.data[(h-i-1)*3*w + j*3+1]);
+//								yuvIplimage.getByteBuffer().put(ch3, videoData.data[(h-i-1)*3*w + j*3+2]);
+//
+//							}  
+//						}  
+						yuvIplimage.getIntBuffer().put(videoData.data);
+						Log.d(TAG, yuvIplimage.toString());
 						long ts = (System.currentTimeMillis() - startTime);
 						recorder.setTimestamp(1000L*ts);
 						recorder.record(yuvIplimage);

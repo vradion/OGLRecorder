@@ -82,33 +82,53 @@ class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);
         checkGlError("glDrawArrays");
         
-        ByteBuffer pixel = ByteBuffer.allocateDirect(4*width*height);
-        
-        pixel.order(ByteOrder.nativeOrder());
-        GLES20.glReadPixels(0, 0, width, height, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixel);
+//        ByteBuffer pixel = ByteBuffer.allocateDirect(4*width*height);
+//        
+//        pixel.order(ByteOrder.nativeOrder());
+//        GLES20.glReadPixels(0, 0, width, height, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixel);
         
 //        while (pixel.hasRemaining()){
 //        	Log.v(TAG,""+(int)(pixel.get() & 0xFF));
 //        }
         
-        final int[] pixelsRGBA_8888 = new int[width * height];
-        final IntBuffer pixelsRGBA_8888_Buffer = IntBuffer.wrap(pixelsRGBA_8888);
+        final int[] source = new int[width * (height)];
+        final IntBuffer sourceBuffer = IntBuffer.wrap(source);
+        sourceBuffer.position(0);
 
         // TODO Check availability of OpenGL and GLES20.GL_RGBA combinations that require less conversion operations.
-        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelsRGBA_8888_Buffer);
-
-        /* Convert from RGBA_8888 (Which is actually ABGR as the whole buffer seems to be inverted) --> ARGB_8888. */
-        final int[] pixelsARGB_8888 = GLHelper.convertRGBA_8888toARGB_8888(pixelsRGBA_8888);
-
+        // Note: There is (said to be) a bug with glReadPixels when 'y != 0', so we simply read starting from 'y == 0'.
+        // TODO Does that bug still exist?
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, sourceBuffer);
+        
         final int[] pixels = new int[width * height];
 
+        // Convert from RGBA_8888 (Which is actually ABGR as the whole buffer seems to be inverted) --> ARGB_8888
+        
+        /*
+        for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                        final int pixel = source[x + (y * width)];
+
+                        final int blue = (pixel & 0x00FF0000) >> 16;
+                        final int red = (pixel & 0x000000FF) << 16;
+                        final int greenAlpha = pixel & 0xFF00FF00;
+
+                        pixels[x + ((height - y - 1) * width)] = greenAlpha | red | blue;
+                }
+        }
+        */
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                pixels[x + ((height - y - 1) * width)] = pixelsARGB_8888[x + ((0 + y) * width)];
+                    final int pixel = source[x + (y * width)];
+
+                 
+                    pixels[x + ((height - y - 1) * width)] = pixel & 0x000000FF << 24 | pixel;
             }
-        }
+    }
+
         
-        currentData.setData(pixel.array(), System.currentTimeMillis());
+        //currentData.setData(pixel.array(), System.currentTimeMillis());
+        currentData.setData(pixels, System.currentTimeMillis());
         
     }
         
@@ -300,13 +320,13 @@ class GLES20TriangleRenderer implements GLSurfaceView.Renderer {
     private int height;
         
     public static class VideoData {
-    	public byte[] data;
+    	public int[] data;
     	public long timestamp = 0;
     	public VideoData()
 		{
 		}
     	    	
-    	public void setData(byte[] data, long timestamp) {
+    	public void setData(int[] data, long timestamp) {
     		this.timestamp = timestamp;
 			this.data = data;
     	}
