@@ -20,15 +20,21 @@ import static com.googlecode.javacv.cpp.opencv_core.IPL_DEPTH_8U;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ShortBuffer;
 import java.util.Date;
 
 import android.app.Activity;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import com.example.android.basicglsurfaceview.GLES20TriangleRenderer.VideoData;
 import com.googlecode.javacv.FFmpegFrameRecorder;
@@ -45,9 +51,21 @@ public class BasicGLSurfaceViewActivity extends Activity {
 	private IplImage yuvIplimage = null;
 	private volatile FFmpegFrameRecorder recorder;
 	private long startTime;
-	private volatile boolean runVideoThread = true;
+	
+	private AudioRecord audioRecord;
+	private AudioRecordRunnable audioRecordRunnable;
+	private Thread audioThread;
 	private Thread videoThread;
+	private volatile boolean runAudioThread = true;
+	private volatile boolean runVideoThread = true;
+
+	
+	private final int sampleAudioRateInHz = 44100;
+	private boolean recording = false;
+	
 	private Button btnStart;
+	TextView txtElapsedTime;
+	private final Handler handler = new Handler();
 
 	public static String TAG = "BasicGLSurfaceView";
 
@@ -78,10 +96,12 @@ public class BasicGLSurfaceViewActivity extends Activity {
 					btnStart.setText("Stop");
 				} else if(btnStart.getText().equals("Stop")) {
 					stopRecording();
-					btnStart.setText("Start");
+					btnStart.setText("Init");
 				}
 			}
 		});
+		
+		txtElapsedTime = (TextView)findViewById(R.id.txtElapsedTime);
 
 
 	}
@@ -131,13 +151,15 @@ public class BasicGLSurfaceViewActivity extends Activity {
 		recorder = new FFmpegFrameRecorder(fName, imageWidth, imageHeight, 1);
 		//recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
 		recorder.setVideoCodec(avcodec.AV_CODEC_ID_MPEG4);
-		//recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
+		recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
 		recorder.setFrameRate(frameRate);
 		recorder.setFormat("mp4");
-		//recorder.setSampleRate(sampleAudioRateInHz);
+		recorder.setSampleRate(sampleAudioRateInHz);
 		Log.i(TAG, "recorder initialize success");
 		videoThread = new Thread(vrr);
 
+		audioRecordRunnable = new AudioRecordRunnable();
+		audioThread = new Thread(audioRecordRunnable);
 	} 
 
 	public void startRecording() {
@@ -150,12 +172,32 @@ public class BasicGLSurfaceViewActivity extends Activity {
 		runVideoThread = true;
 		videoThread.start();
 		
+		runAudioThread = true;
+		audioThread.start();
+		
+		recording = true;
+		handler.post(timingProcess);
 	}
 
 	public void stopRecording() {
 		runVideoThread = false;
+		runAudioThread = false;
+		recording = false;
+		handler.removeCallbacks(timingProcess);
 	}
+	
+	public final Runnable timingProcess = new Runnable()
+	{
 
+		@Override
+		public void run()
+		{
+			long elapsedTime = System.currentTimeMillis() - startTime;
+			txtElapsedTime.setText("Elapsed time: " + elapsedTime + " miliseconds");
+			handler.postDelayed(timingProcess, 500);
+		}
+	};
+	
 	final VideoRecordRunnable vrr = new VideoRecordRunnable();
 
 	class VideoRecordRunnable implements Runnable {
@@ -172,21 +214,6 @@ public class BasicGLSurfaceViewActivity extends Activity {
 				videoData = mView.getCurrentVideoData();
 				if(videoData != null) {
 					try {
-						int h = imageHeight;
-						int w = imageWidth;
-//						for(int i=0; i < h; ++i)  
-//						{  
-//							for(int j=0; j < w; ++j)  
-//							{  
-//								int ch1 = i*yuvIplimage.widthStep() + j*3 + 0;
-//								int ch2 = i*yuvIplimage.widthStep() + j*3 + 1;
-//								int ch3 = i*yuvIplimage.widthStep() + j*3 + 2;
-//								yuvIplimage.getByteBuffer().put(ch1, videoData.data[(h-i-1)*3*w + j*3+0]);
-//								yuvIplimage.getByteBuffer().put(ch2, videoData.data[(h-i-1)*3*w + j*3+1]);
-//								yuvIplimage.getByteBuffer().put(ch3, videoData.data[(h-i-1)*3*w + j*3+2]);
-//
-//							}  
-//						}  
 						yuvIplimage.getIntBuffer().put(videoData.data);
 						Log.d(TAG, yuvIplimage.toString());
 						long ts = (System.currentTimeMillis() - startTime);
@@ -217,5 +244,61 @@ public class BasicGLSurfaceViewActivity extends Activity {
 			return;
 		}
 	}
+	
+	//---------------------------------------------
+		// audio thread, gets and encodes audio data
+		//---------------------------------------------
+		class AudioRecordRunnable implements Runnable {
+
+			@Override
+			public void run() {
+				android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+
+				// Audio
+				int bufferSize;
+				short[] audioData;
+				int bufferReadResult;
+
+				bufferSize = AudioRecord.getMinBufferSize(sampleAudioRateInHz,
+						AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);
+				audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, sampleAudioRateInHz,
+						AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+
+				audioData = new short[bufferSize];
+
+				Log.d(TAG, "audioRecord.startRecording()");
+				audioRecord.startRecording();
+
+				/* ffmpeg_audio encoding loop */
+				while (runAudioThread) {
+					bufferReadResult = audioRecord.read(audioData, 0, audioData.length);
+					if (bufferReadResult > 0) {
+						// If "recording" isn't true when start this thread, it never get's set according to this if statement...!!!
+						// Why?  Good question...
+
+						if (recording) {
+							try {
+								ShortBuffer[] bufferArray = new ShortBuffer[1];
+								bufferArray[0] = ShortBuffer.wrap(audioData, 0, bufferReadResult);
+								recorder.record(bufferArray);
+							} catch (FFmpegFrameRecorder.Exception e) {
+								Log.v(TAG,e.getMessage());
+								e.printStackTrace();
+							}
+						}
+
+					}
+				}
+				Log.v(TAG,"AudioThread Finished, release audioRecord");
+
+				/* encoding finish, release recorder */
+				if (audioRecord != null) {
+					audioRecord.stop();
+					audioRecord.release();
+					audioRecord = null;
+					Log.v(TAG,"audioRecord released");
+				}
+			}
+		}
 
 }
